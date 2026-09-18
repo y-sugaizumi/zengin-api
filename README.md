@@ -141,6 +141,18 @@ example.com {
 }
 ```
 
+## ログ
+
+`log/slog` でJSONをstdoutに出力するだけで、ファイル出力やアプリ側でのログローテーションは
+行わない。systemd管理下ではstdoutは自動でjournalに入るため、`journalctl -u zengin-api.service`
+で確認できる。journalの保持・ローテーションはホスト共通のjournald設定に従う（このリポジトリでは
+何も設定しない）。
+
+> **TODO**: 2026-09時点でホストのログ収集基盤(`docker-compose-collection/stacks/observability`)は
+> PromtailがDockerコンテナのログしかスクレイプしておらず、journald→Lokiの経路が無い。整備するまでは
+> このアプリのログはLokiで検索できず、`journalctl`でのローカル確認のみになる
+> (詳細は `growstar-docker-deploy` skillの `references/go-binary-deploy.md` 参照)。
+
 ## 環境変数
 
 | 変数 | デフォルト | 内容 |
