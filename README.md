@@ -18,7 +18,8 @@ zengin-api/
 │   ├── httpapi/            # HTTPハンドラ・ルーティング
 │   └── logging/            # log/slog によるJSON構造化ログ設定
 ├── Makefile                # golang-buildコンテナ経由のビルド / ローカルビルド / 開発用タスク
-├── systemd/
+├── deploy/
+│   ├── install.sh                 # ホストへのインストール/再デプロイスクリプト（冪等）
 │   ├── zengin-api.service         # serve を常駐させるunit
 │   ├── zengin-api-update.service  # update を1回実行するunit（timerから起動）
 │   ├── zengin-api-update.timer    # 毎日02:00に update.service をキック
@@ -43,7 +44,7 @@ zengin-api/
 
 アプリ自身はcronを内蔵しません（SPEC参照：定期実行は外側からキックする前提）。
 `zengin-api update` を実行すると1回だけデータ取得・書き出しを行って終了するので、
-systemd timer やジョブスケジューラから都度呼び出してください。`systemd/zengin-api-update.timer`
+systemd timer やジョブスケジューラから都度呼び出してください。`deploy/zengin-api-update.timer`
 が毎日02:00実行の例です。
 
 `serve` プロセスは別プロセス（`update`）が書き換えたファイルを直接は検知できないため、
@@ -110,28 +111,27 @@ make build
 コンテナは使わず、`make build` で作った `bin/zengin-api` をそのままホストに配置し、systemdで
 動かします。Caddyへの接続は他のGrowstarアプリと同じくUNIXドメインソケット経由です。
 
+デプロイ関連ファイルは `deploy/` にまとまっています。ユーザー作成・ディレクトリ準備・env配置・
+バイナリ配置・systemd unit配置と起動まで、`deploy/install.sh` が一括で行います。初回実行と
+再デプロイ（バイナリ更新後の再起動）のどちらにも同じスクリプトを使えます（冪等。既存の
+`/etc/zengin-api/env` は上書きしません）。
+
 ```bash
 # ビルド（開発機やビルドサーバーで実行）
 make build
 
-# --- 対象ホストでの事前準備 ---
-sudo useradd --system --home /var/lib/zengin-api --shell /usr/sbin/nologin zengin-api
-sudo mkdir -p /opt/zengin-api/bin /var/lib/zengin-api /srv/sockets/zengin-api /etc/zengin-api
-sudo chown -R zengin-api:zengin-api /var/lib/zengin-api /srv/sockets/zengin-api
-sudo cp systemd/zengin-api.env.example /etc/zengin-api/env   # 内容を必要に応じて編集
-
-# --- バイナリ配置 ---
-sudo cp bin/zengin-api /opt/zengin-api/bin/zengin-api
-
-# --- systemd unit配置 ---
-sudo cp systemd/zengin-api.service systemd/zengin-api-update.service systemd/zengin-api-update.timer \
-  /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now zengin-api.service
-sudo systemctl enable --now zengin-api-update.timer
+# 対象ホストにリポジトリ一式（bin/zengin-api含む）を配置した上で実行
+sudo ./deploy/install.sh
 ```
 
-再デプロイ（バイナリ更新）は `cp` してから `systemctl restart zengin-api.service` するだけです。
+`deploy/install.sh` がやること（`deploy/*.service` `deploy/*.timer` `deploy/*.env.example` を参照）:
+
+1. システムユーザー `zengin-api` を作成（未作成の場合のみ）
+2. `/opt/zengin-api/bin` `/var/lib/zengin-api` `/srv/sockets/zengin-api` `/etc/zengin-api` を用意
+3. `/etc/zengin-api/env` が無ければ `deploy/zengin-api.env.example` から作成（既存なら上書きしない）
+4. `bin/zengin-api` を `/opt/zengin-api/bin/zengin-api` に配置
+5. `deploy/*.service` `deploy/*.timer` を `/etc/systemd/system/` に配置して `daemon-reload`
+6. `zengin-api.service` を再起動、`zengin-api-update.timer` を有効化
 
 Caddyfile側では以下のように設定してもらいます。
 
