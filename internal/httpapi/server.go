@@ -24,6 +24,10 @@ func NewHandler(store *zengindata.Store, logger *slog.Logger) http.Handler {
 	// ドキュメント/ディスカバリ用エンドポイント。別ワークスペースのREADMEを読みに行かなくても、
 	// このAPI自身の情報だけで連携アプリを実装できるようにする(OpenAPI仕様・人間向けdocs・
 	// AIエージェント向けのconcepts/guides/examples)。
+	//
+	// "/{$}" はルートパス完全一致のみを拾う特殊ワイルドカード。"/" は他に一致するパターンが
+	// 無いときの受け皿(サブツリー)になってしまい、未定義パスが全部200を返してしまうため使わない。
+	mux.HandleFunc("GET /{$}", h.asset("assets/index.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /openapi.json", h.asset("assets/openapi.json", "application/json; charset=utf-8"))
 	mux.HandleFunc("GET /docs", h.asset("assets/docs.html", "text/html; charset=utf-8"))
 	mux.HandleFunc("GET /ai", h.asset("assets/ai/index.json", "application/json; charset=utf-8"))

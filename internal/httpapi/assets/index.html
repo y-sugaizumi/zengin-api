@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>zengin-api</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.6; }
+    h1 { margin-bottom: 0.25rem; }
+    p.lead { color: #555; }
+    h2 { margin-top: 2rem; font-size: 1.05rem; }
+    ul { padding-left: 1.25rem; }
+    code { background: #f0f0f0; padding: 0.1rem 0.35rem; border-radius: 0.25rem; }
+    .desc { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>zengin-api</h1>
+  <p class="lead">全銀フォーマット（金融機関コード・支店コード）を提供する読み取り専用JSON API。</p>
+
+  <h2>API v1</h2>
+  <ul>
+    <li><code>GET /v1/banks</code> <span class="desc">— 金融機関一覧（<code>?q=</code>で部分一致検索）</span></li>
+    <li><code>GET /v1/banks/{code}</code> <span class="desc">— 金融機関を1件取得</span></li>
+    <li><code>GET /v1/banks/{code}/branches</code> <span class="desc">— 指定金融機関の支店一覧（<code>?q=</code>で部分一致検索）</span></li>
+    <li><code>GET /v1/banks/{code}/branches/{branchCode}</code> <span class="desc">— 支店を1件取得</span></li>
+    <li><code>GET /v1/branches</code> <span class="desc">— 全支店（<code>?bank_code=</code> / <code>?q=</code>で絞り込み）</span></li>
+  </ul>
+
+  <h2>ヘルスチェック</h2>
+  <ul>
+    <li><code>GET /healthz</code></li>
+  </ul>
+
+  <h2>ドキュメント</h2>
+  <ul>
+    <li><a href="/openapi.json"><code>GET /openapi.json</code></a> <span class="desc">— OpenAPI 3.0仕様</span></li>
+    <li><a href="/docs"><code>GET /docs</code></a> <span class="desc">— Swagger UI</span></li>
+  </ul>
+
+  <h2>AIエージェント向け</h2>
+  <ul>
+    <li><a href="/ai"><code>GET /ai</code></a> <span class="desc">— 概要・エンドポイント一覧</span></li>
+    <li><a href="/ai/concepts"><code>GET /ai/concepts</code></a> <span class="desc">— ドメイン概念</span></li>
+    <li><a href="/ai/guides"><code>GET /ai/guides</code></a> <span class="desc">— ユースケース別の実装手順</span></li>
+    <li><a href="/ai/examples"><code>GET /ai/examples</code></a> <span class="desc">— リクエスト/レスポンス例</span></li>
+  </ul>
+</body>
+</html>

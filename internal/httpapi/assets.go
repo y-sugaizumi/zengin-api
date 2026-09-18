@@ -6,5 +6,5 @@ import "embed"
 // 別ワークスペースのREADMEを読みに行かなくても、このAPI自身が実装に必要な情報
 // (OpenAPI仕様・人間向けdocs・AIエージェント向けのconcepts/guides/examples)を返せるようにする。
 //
-//go:embed assets/openapi.json assets/docs.html assets/ai/*.json
+//go:embed assets/index.html assets/openapi.json assets/docs.html assets/ai/*.json
 var assetsFS embed.FS
