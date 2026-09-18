@@ -3,8 +3,9 @@
 // サブコマンド:
 //   - serve       : HTTP APIサーバーを起動する（常駐プロセス）
 //   - update       : zengin-code/source-data から最新データを取得してディスクに書き出し、終了する
-//   - healthcheck : /healthz を1回だけ叩いて終了する（Dockerヘルスチェック用、curl不要）
+//   - healthcheck : /healthz を1回だけ叩いて終了する（systemdのヘルスチェック等から利用）
 //
+// デプロイはコンテナ化せず、このバイナリをそのままホストに配置してsystemdで動かす想定。
 // 定期実行(update)はアプリ自身のcronで持たず、systemd timer 等の外側のスケジューラから
 // `zengin-api update` を都度キックする前提にしている(SPEC参照)。serveプロセスは別プロセスが
 // 書き換えたデータをRELOAD_INTERVALごとにポーリングして取り込む。
@@ -19,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -57,6 +59,16 @@ func main() {
 func runServe(logger *slog.Logger) error {
 	dataDir := envOr("DATA_DIR", "./data")
 	reloadInterval := envDurationOr("RELOAD_INTERVAL", 5*time.Minute)
+
+	if _, err := os.Stat(filepath.Join(dataDir, "banks.json")); os.IsNotExist(err) {
+		logger.Info("データが存在しません。初回取得を実行します")
+		bootstrapCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		if _, err := zengindata.Update(bootstrapCtx, dataDir); err != nil {
+			cancel()
+			return fmt.Errorf("初回データ取得に失敗しました: %w", err)
+		}
+		cancel()
+	}
 
 	store := zengindata.NewStore(dataDir)
 	if err := store.Reload(); err != nil {

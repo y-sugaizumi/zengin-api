@@ -1,10 +1,12 @@
 [Unit]
 Description=zengin-api: 全銀フォーマットマスタデータの更新
-# app(serveコンテナ)が起動していなくても実行できるように依存させない。
+# zengin-api.service(serve)が起動していなくても実行できるように依存させない。
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/srv/apps/zengin-api
-ExecStart=/usr/bin/docker compose -f docker/compose.yaml run --rm --no-deps app update
+User=zengin-api
+Group=zengin-api
+EnvironmentFile=/etc/zengin-api/env
+ExecStart=/opt/zengin-api/bin/zengin-api update

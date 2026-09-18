@@ -1,0 +1,19 @@
+[Unit]
+Description=zengin-api: 全銀フォーマットAPI
+After=network.target
+
+[Service]
+Type=simple
+User=zengin-api
+Group=zengin-api
+EnvironmentFile=/etc/zengin-api/env
+ExecStart=/opt/zengin-api/bin/zengin-api serve
+Restart=on-failure
+RestartSec=5s
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/zengin-api /srv/sockets/zengin-api
+
+[Install]
+WantedBy=multi-user.target
