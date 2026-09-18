@@ -1,0 +1,10 @@
+[Unit]
+Description=zengin-api: 毎日02:00にマスタデータを更新する
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+# イメージビルド専用。
+# `docker compose -f docker/compose.build.yaml build` でビルドし、
+# 起動は docker/compose.yaml (image: 参照) 側で行う。
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/app.Dockerfile
+    image: zengin-api-app:${TAG:-latest}

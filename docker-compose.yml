@@ -1,0 +1,21 @@
+# ローカルでの動作確認用(本番構成は docker/compose.build.yaml + docker/compose.yaml を参照)。
+# TCPポートを直接公開し、./data をbind mountする。
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ADDR: :8080
+      LOG_LEVEL: info
+      RELOAD_INTERVAL: 5m
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "zengin-api", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

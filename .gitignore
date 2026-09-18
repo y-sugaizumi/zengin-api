@@ -1,0 +1,10 @@
+# 生成データ（updateサブコマンドで取得、日次更新想定）
+/data/
+
+# ビルド成果物
+/bin/
+/zengin-api
+
+# エディタ
+.DS_Store
+*.swp
