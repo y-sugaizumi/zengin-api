@@ -1,0 +1,48 @@
+{
+  "examples": [
+    {
+      "title": "ヘルスチェック",
+      "request": "curl https://zengin.example.com/healthz",
+      "response": { "status": "ok", "source_updated_at": "20260824" }
+    },
+    {
+      "title": "金融機関名で検索",
+      "request": "curl 'https://zengin.example.com/v1/banks?q=%E3%81%BF%E3%81%9A%E3%81%BB'",
+      "request_note": "qは\"みずほ\"をURLエンコードしたもの",
+      "response": [
+        { "code": "0001", "name": "みずほ", "kana": "ミズホ", "hira": "みずほ", "roma": "mizuho" },
+        { "code": "0289", "name": "みずほ信託", "kana": "ミズホシンタク", "hira": "みずほしんたく", "roma": "mizuhoshintaku" }
+      ]
+    },
+    {
+      "title": "金融機関を1件取得",
+      "request": "curl https://zengin.example.com/v1/banks/0001",
+      "response": { "code": "0001", "name": "みずほ", "kana": "ミズホ", "hira": "みずほ", "roma": "mizuho" }
+    },
+    {
+      "title": "存在しない金融機関コード(404)",
+      "request": "curl -i https://zengin.example.com/v1/banks/9999",
+      "response_status": 404,
+      "response": { "error": "金融機関が見つかりません: 9999" }
+    },
+    {
+      "title": "指定金融機関の支店一覧",
+      "request": "curl https://zengin.example.com/v1/banks/0001/branches",
+      "response": [
+        { "bank_code": "0001", "code": "001", "name": "東京営業部", "kana": "トウキヨウ", "hira": "とうきよう", "roma": "toukiyou" },
+        { "bank_code": "0001", "code": "004", "name": "丸の内中央", "kana": "マルノウチチユウオウ", "hira": "まるのうちちゆうおう", "roma": "marunouchichiyuuou" }
+      ],
+      "response_note": "実際は該当金融機関の全支店が返る(ここでは例として2件のみ掲載)"
+    },
+    {
+      "title": "支店を1件取得",
+      "request": "curl https://zengin.example.com/v1/banks/0001/branches/001",
+      "response": { "bank_code": "0001", "code": "001", "name": "東京営業部", "kana": "トウキヨウ", "hira": "とうきよう", "roma": "toukiyou" }
+    },
+    {
+      "title": "全支店を金融機関コードで絞り込み",
+      "request": "curl 'https://zengin.example.com/v1/branches?bank_code=0001'",
+      "response_note": "GET /v1/banks/0001/branches と同じ結果になる。金融機関をまたいで支店名を検索したい場合はbank_codeを付けずqだけを指定する"
+    }
+  ]
+}

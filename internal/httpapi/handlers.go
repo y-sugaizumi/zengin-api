@@ -69,3 +69,19 @@ func (h *handlers) listAllBranches(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	writeJSON(w, h.logger, http.StatusOK, h.store.ListBranches(bankCode, q))
 }
+
+// asset は assetsFS に埋め込んだ静的ファイルをそのまま返すハンドラを作る。
+// /openapi.json・/docs・/ai 配下はすべてこれで配信する(リクエストごとの動的生成は不要な静的コンテンツ)。
+func (h *handlers) asset(path, contentType string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		data, err := assetsFS.ReadFile(path)
+		if err != nil {
+			h.logger.Error("埋め込みアセットの読み込みに失敗しました", "path", path, "error", err)
+			writeError(w, h.logger, http.StatusInternalServerError, "内部エラー")
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+	}
+}

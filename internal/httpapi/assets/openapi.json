@@ -1,0 +1,237 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "zengin-api",
+    "version": "v1",
+    "description": "全銀フォーマット（日本の金融機関コード・支店コード）を提供する読み取り専用のJSON API。認証・レート制限は無く、全OriginからのGETを許可している。"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "ヘルスチェック",
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "description": "正常。データ取得元(zengin-code/source-data)の更新日時を含む",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Health" }
+              }
+            }
+          },
+          "503": {
+            "description": "データ未取得(起動直後の初回取得が終わっていない等)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/banks": {
+      "get": {
+        "summary": "金融機関一覧",
+        "operationId": "listBanks",
+        "parameters": [
+          { "$ref": "#/components/parameters/Query" }
+        ],
+        "responses": {
+          "200": {
+            "description": "金融機関の配列（code昇順）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Bank" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/banks/{code}": {
+      "get": {
+        "summary": "金融機関を1件取得",
+        "operationId": "getBank",
+        "parameters": [
+          { "$ref": "#/components/parameters/BankCode" }
+        ],
+        "responses": {
+          "200": {
+            "description": "該当する金融機関",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Bank" }
+              }
+            }
+          },
+          "404": {
+            "description": "指定コードの金融機関が存在しない",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/banks/{code}/branches": {
+      "get": {
+        "summary": "指定金融機関の支店一覧",
+        "operationId": "listBranches",
+        "parameters": [
+          { "$ref": "#/components/parameters/BankCode" },
+          { "$ref": "#/components/parameters/Query" }
+        ],
+        "responses": {
+          "200": {
+            "description": "支店の配列（code昇順）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Branch" }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "指定コードの金融機関が存在しない",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/banks/{code}/branches/{branchCode}": {
+      "get": {
+        "summary": "支店を1件取得",
+        "operationId": "getBranch",
+        "parameters": [
+          { "$ref": "#/components/parameters/BankCode" },
+          {
+            "name": "branchCode",
+            "in": "path",
+            "required": true,
+            "description": "支店コード(3桁、ゼロ埋めを含む文字列)",
+            "schema": { "type": "string", "example": "001" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "該当する支店",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Branch" }
+              }
+            }
+          },
+          "404": {
+            "description": "指定コードの金融機関または支店が存在しない",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/branches": {
+      "get": {
+        "summary": "全支店（金融機関横断）",
+        "operationId": "listAllBranches",
+        "parameters": [
+          {
+            "name": "bank_code",
+            "in": "query",
+            "required": false,
+            "description": "指定すると、その金融機関の支店だけに絞り込む",
+            "schema": { "type": "string", "example": "0001" }
+          },
+          { "$ref": "#/components/parameters/Query" }
+        ],
+        "responses": {
+          "200": {
+            "description": "支店の配列（bank_code, code昇順）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Branch" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "BankCode": {
+        "name": "code",
+        "in": "path",
+        "required": true,
+        "description": "金融機関コード(4桁、ゼロ埋めを含む文字列)",
+        "schema": { "type": "string", "example": "0001" }
+      },
+      "Query": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "code/name/kana/hira/romaに対する部分一致検索(大文字小文字を区別する単純な文字列包含)",
+        "schema": { "type": "string", "example": "みずほ" }
+      }
+    },
+    "schemas": {
+      "Bank": {
+        "type": "object",
+        "required": ["code", "name", "kana", "hira", "roma"],
+        "properties": {
+          "code": { "type": "string", "description": "金融機関コード(4桁)", "example": "0001" },
+          "name": { "type": "string", "example": "みずほ" },
+          "kana": { "type": "string", "example": "ミズホ" },
+          "hira": { "type": "string", "example": "みずほ" },
+          "roma": { "type": "string", "example": "mizuho" }
+        }
+      },
+      "Branch": {
+        "type": "object",
+        "required": ["bank_code", "code", "name", "kana", "hira", "roma"],
+        "properties": {
+          "bank_code": { "type": "string", "description": "所属する金融機関コード(4桁)", "example": "0001" },
+          "code": { "type": "string", "description": "支店コード(3桁)", "example": "001" },
+          "name": { "type": "string", "example": "東京営業部" },
+          "kana": { "type": "string", "example": "トウキヨウ" },
+          "hira": { "type": "string", "example": "とうきよう" },
+          "roma": { "type": "string", "example": "toukiyou" }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "source_updated_at": {
+            "type": "string",
+            "description": "zengin-code/source-data 側の最終更新日時(YYYYMMDD)",
+            "example": "20260824"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "金融機関が見つかりません: 9999" }
+        }
+      }
+    }
+  }
+}

@@ -21,6 +21,16 @@ func NewHandler(store *zengindata.Store, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /v1/banks/{code}/branches/{branchCode}", h.getBranch)
 	mux.HandleFunc("GET /v1/branches", h.listAllBranches)
 
+	// ドキュメント/ディスカバリ用エンドポイント。別ワークスペースのREADMEを読みに行かなくても、
+	// このAPI自身の情報だけで連携アプリを実装できるようにする(OpenAPI仕様・人間向けdocs・
+	// AIエージェント向けのconcepts/guides/examples)。
+	mux.HandleFunc("GET /openapi.json", h.asset("assets/openapi.json", "application/json; charset=utf-8"))
+	mux.HandleFunc("GET /docs", h.asset("assets/docs.html", "text/html; charset=utf-8"))
+	mux.HandleFunc("GET /ai", h.asset("assets/ai/index.json", "application/json; charset=utf-8"))
+	mux.HandleFunc("GET /ai/concepts", h.asset("assets/ai/concepts.json", "application/json; charset=utf-8"))
+	mux.HandleFunc("GET /ai/guides", h.asset("assets/ai/guides.json", "application/json; charset=utf-8"))
+	mux.HandleFunc("GET /ai/examples", h.asset("assets/ai/examples.json", "application/json; charset=utf-8"))
+
 	return withLogging(logger, withCORS(mux))
 }
 

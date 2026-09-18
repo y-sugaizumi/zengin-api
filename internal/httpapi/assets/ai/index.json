@@ -1,0 +1,25 @@
+{
+  "name": "zengin-api",
+  "summary": "全銀フォーマット（日本の金融機関コード・支店コード）を提供する読み取り専用JSON API。振込先の銀行名・支店名の解決や、銀行/支店選択UIの候補検索に使う。",
+  "note_for_agents": "このAPIを使うアプリのコード生成・実装を行うAIエージェントは、READMEを別ワークスペースから読みに行く代わりに、この /ai 配下のエンドポイントと /openapi.json を参照すれば実装に必要な情報が揃う。",
+  "version": "v1",
+  "auth": "なし。全エンドポイントが認証不要の読み取り専用",
+  "rate_limit": "なし",
+  "cors": "全OriginからのGETを許可",
+  "base_url": "このJSONを取得したオリジンをそのままベースURLとして使う（例: https://zengin.example.com なら https://zengin.example.com/v1/banks）",
+  "endpoints": [
+    { "method": "GET", "path": "/healthz", "summary": "ヘルスチェック。データ取得元の更新日時を含む" },
+    { "method": "GET", "path": "/v1/banks", "summary": "金融機関一覧。?q=で部分一致検索" },
+    { "method": "GET", "path": "/v1/banks/{code}", "summary": "金融機関を1件取得" },
+    { "method": "GET", "path": "/v1/banks/{code}/branches", "summary": "指定金融機関の支店一覧。?q=で部分一致検索" },
+    { "method": "GET", "path": "/v1/banks/{code}/branches/{branchCode}", "summary": "支店を1件取得" },
+    { "method": "GET", "path": "/v1/branches", "summary": "全支店。?bank_code=で絞り込み、?q=で部分一致検索" }
+  ],
+  "resources": {
+    "openapi_spec": "/openapi.json",
+    "human_docs": "/docs",
+    "concepts": "/ai/concepts",
+    "guides": "/ai/guides",
+    "examples": "/ai/examples"
+  }
+}

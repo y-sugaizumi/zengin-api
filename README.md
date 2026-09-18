@@ -16,6 +16,7 @@ zengin-api/
 ├── internal/
 │   ├── zengindata/        # データ取得(source.go)・保持(store.go)・定期再読込(watch.go)
 │   ├── httpapi/            # HTTPハンドラ・ルーティング
+│   │   └── assets/          # /openapi.json /docs /ai/* で配信する静的ドキュメント(go:embed)
 │   └── logging/            # log/slog によるJSON構造化ログ設定
 ├── Makefile                # golang-buildコンテナ経由のビルド / ローカルビルド / 開発用タスク
 ├── deploy/
@@ -79,6 +80,25 @@ zengin-code のデータ更新頻度（日次）に対して十分な追随速�
 
 `BankController@update`（YAMLからDBへの取り込み）は、Laravel側でこのAPIを定期的に叩いて
 `m_banks` / `m_bank_brunches` を更新するように置き換えられます（未実装・今回のスコープ外）。
+
+### ドキュメント/ディスカバリエンドポイント
+
+このAPIと連携するアプリを実装する際、別ワークスペースのこのREADMEを読みに行かなくても、
+API自身が実装に必要な情報を返せるようにしている。
+
+| エンドポイント | 内容 |
+|---|---|
+| `GET /openapi.json` | OpenAPI 3.0仕様 |
+| `GET /docs` | Swagger UI（`/openapi.json`を描画する人間向けページ） |
+| `GET /ai` | 概要・エンドポイント一覧・他の`/ai/*`へのリンクを含むインデックス |
+| `GET /ai/concepts` | ドメイン概念（bank/branchの定義、code/name/kana/hira/romaの意味、データ鮮度、エラー形式、検索仕様等） |
+| `GET /ai/guides` | ユースケース別の実装手順（コード→名称解決、オートコンプリート、支店選択、更新検知等） |
+| `GET /ai/examples` | 各エンドポイントのcurlコマンドとレスポンス例 |
+
+`/ai/*`はコード生成・実装補助を行うAIエージェント（Claude Code等）が、このAPIと連携する
+アプリを別ワークスペースで実装する際に、READMEを横断参照する代わりに読む想定のエンドポイント。
+内容は `internal/httpapi/assets/` にJSON/HTMLとして置き、`go:embed` でバイナリに埋め込んでいる。
+APIの仕様を変えたときはこれらのファイルも合わせて更新すること。
 
 ## ローカルでの動作確認
 
