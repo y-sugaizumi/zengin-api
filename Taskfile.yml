@@ -1,0 +1,131 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  APP: zengin-api
+  GOLANG_BUILD_DIR: '{{.HOME}}/repos/internal/docker-compose-collection/tooling/golang-build'
+  GOLANG_IMAGE: growstar/golang-builder:1.27.1
+  CADDY_SITE: '{{.HOME}}/repos/internal/docker-compose-collection/scripts/caddy-site.sh'
+  GOOS: linux
+  GOARCH: amd64
+  HOST_UID:
+    sh: id -u
+  HOST_GID:
+    sh: id -g
+  # 開発機にGoを入れずに go コマンドを使うためのコンテナ。
+  # モジュールとビルドのキャッシュはリポジトリ内の .cache/(gitignore済み)に置く。
+  GO: >-
+    docker run --rm -u {{.HOST_UID}}:{{.HOST_GID}}
+    -v {{.ROOT_DIR}}:/workspace -w /workspace
+    -e GOMODCACHE=/workspace/.cache/gomod -e GOCACHE=/workspace/.cache/gobuild -e HOME=/tmp
+    {{.GOLANG_IMAGE}} go
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  build:
+    desc: tooling/golang-build コンテナで静的バイナリ bin/zengin-api をビルドする
+    # ホストにGoツールチェインが無くても、Docker越しに静的バイナリ(bin/zengin-api)を作れる。
+    # デプロイはこのバイナリをそのまま配布する(Dockerはビルド専用、実行はsystemd)。
+    cmds:
+      - mkdir -p bin
+      # tooling/golang-build はrootで動くので、できたバイナリの所有者を戻す
+      - >-
+        WORKSPACE={{.ROOT_DIR}} OUT_DIR={{.ROOT_DIR}}/bin
+        docker compose -f {{.GOLANG_BUILD_DIR}}/compose.yml run --rm builder
+        sh -c 'cd /workspace && CGO_ENABLED=0 GOOS={{.GOOS}} GOARCH={{.GOARCH}}
+        go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/{{.APP}} ./cmd/{{.APP}}
+        && chown {{.HOST_UID}}:{{.HOST_GID}} /out/{{.APP}}'
+
+  build:image:
+    desc: Dockerfile変更後にビルダーイメージを作り直す
+    cmds:
+      - docker compose -f {{.GOLANG_BUILD_DIR}}/compose.yml build
+
+  build:local:
+    desc: ホストのGoで直接ビルドする(開発機での動作確認用)
+    cmds:
+      - CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/{{.APP}} ./cmd/{{.APP}}
+
+  deploy:
+    desc: bin/zengin-api をインストールしてsystemdで再起動する(対象ホスト上で実行)
+    prompt: '{{.APP}} をこのホストにインストールして再起動します。続けますか?'
+    preconditions:
+      - sh: test -f bin/{{.APP}}
+        msg: bin/{{.APP}} がありません。先に task build を実行してください
+    cmds:
+      - sudo ./deploy/install.sh
+
+  uninstall:
+    desc: Caddyのサイト定義・systemd unit・バイナリ・/etc/zengin-api を削除する。データとユーザーは残す(対象ホスト上で実行)
+    prompt: '{{.APP}} をこのホストから削除します(データ /var/lib/{{.APP}} は残します)。続けますか?'
+    cmds:
+      - bash {{.CADDY_SITE}} uninstall {{.APP}}
+      - sudo ./deploy/uninstall.sh
+
+  uninstall:purge:
+    desc: uninstall に加えて、データ(/var/lib/zengin-api)とシステムユーザーも削除する
+    prompt: '{{.APP}} をデータ(/var/lib/{{.APP}})ごと削除します。続けますか?'
+    cmds:
+      - bash {{.CADDY_SITE}} uninstall {{.APP}}
+      - sudo ./deploy/uninstall.sh --purge
+
+  logs:
+    desc: systemdのログを追う(対象ホスト上で実行)
+    cmds:
+      - journalctl -u {{.APP}}.service -u {{.APP}}-update.service -f
+
+  dev:
+    desc: 開発用にTCP(127.0.0.1:8080)で起動する。データは ./data(無ければ起動時に取得)
+    cmds:
+      - mkdir -p data .cache
+      - >-
+        docker run --rm -it -u {{.HOST_UID}}:{{.HOST_GID}} -p 127.0.0.1:8080:8080
+        -v {{.ROOT_DIR}}:/workspace -w /workspace
+        -e ADDR=0.0.0.0:8080 -e DATA_DIR=/workspace/data -e LOG_LEVEL=debug
+        -e GOMODCACHE=/workspace/.cache/gomod -e GOCACHE=/workspace/.cache/gobuild -e HOME=/tmp
+        {{.GOLANG_IMAGE}} go run ./cmd/{{.APP}} serve
+
+  update:
+    desc: データ更新を ./data に対して実行する(開発用)
+    cmds:
+      - mkdir -p data .cache
+      - '{{.GO}} run ./cmd/{{.APP}} update'
+
+  fmt:
+    desc: gofmt を適用する
+    cmds:
+      - mkdir -p .cache
+      - '{{.GO}} fmt ./...'
+
+  lint:
+    desc: go vet と gofmt の差分確認
+    cmds:
+      - mkdir -p .cache
+      - '{{.GO}} vet ./...'
+      - docker run --rm -v {{.ROOT_DIR}}:/workspace:ro -w /workspace {{.GOLANG_IMAGE}} sh -c 'test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal; exit 1)'
+
+  test:
+    desc: テストを実行する(task test -- -run TestXxx で引数を渡す)
+    cmds:
+      - mkdir -p .cache
+      - '{{.GO}} test ./... {{.CLI_ARGS}}'
+
+  caddy:show:
+    desc: Caddyに配置するサイト定義を表示する(配置はしない)
+    cmds:
+      - bash {{.CADDY_SITE}} render {{.APP}} infra/caddy/site.caddy
+
+  caddy:install:
+    desc: サイト定義をCaddyに配置して reload する(validate に通らなければ元に戻す)
+    cmds:
+      - bash {{.CADDY_SITE}} install {{.APP}} infra/caddy/site.caddy
+
+  caddy:uninstall:
+    desc: サイト定義をCaddyから外して reload する
+    prompt: Caddyから {{.APP}} のサイト定義を外します。続けますか?
+    cmds:
+      - bash {{.CADDY_SITE}} uninstall {{.APP}}

@@ -18,9 +18,14 @@ zengin-api/
 │   ├── httpapi/            # HTTPハンドラ・ルーティング
 │   │   └── assets/          # /openapi.json /docs /ai/* で配信する静的ドキュメント(go:embed)
 │   └── logging/            # log/slog によるJSON構造化ログ設定
-├── Makefile                # golang-buildコンテナ経由のビルド / ローカルビルド / 開発用タスク
+├── Taskfile.yml            # ビルド・デプロイ・開発用タスク（`task --list` で一覧）
+├── infra/caddy/site.caddy  # Caddyのサイト定義のテンプレート（`task caddy:install` で配置）
+├── docs/
+│   └── upgrade-2026-10-taskfile.md  # Makefile運用からの移行手順（運用中ホスト向け）
 ├── deploy/
 │   ├── install.sh                 # ホストへのインストール/再デプロイスクリプト（冪等）
+│   ├── uninstall.sh               # install.sh で入れたものを取り除く（`--purge` でデータも）
+│   ├── zengin-api-cli.sh          # /usr/local/bin/zengin-api に置く管理コマンドの入口
 │   ├── zengin-api.service         # serve を常駐させるunit
 │   ├── zengin-api-update.service  # update を1回実行するunit（timerから起動）
 │   ├── zengin-api-update.timer    # 毎日02:00に update.service をキック
@@ -103,9 +108,15 @@ APIの仕様を変えたときはこれらのファイルも合わせて更新�
 
 ## ローカルでの動作確認
 
+よく使う操作は `Taskfile.yml`（[go-task](https://taskfile.dev/)）にまとめてあります。一覧は `task --list`。
+`dev` / `update` / `test` / `lint` / `fmt` は `growstar/golang-builder` イメージのコンテナで `go` を動かすので、
+開発機にGoは要りません（モジュール・ビルドのキャッシュはリポジトリ内の `.cache/` に置きます）。
+
 ```bash
-make update   # DATA_DIR (デフォルト ./data) にデータ取得 (go run update相当)
-make run      # ADDR (デフォルト :8080) でAPIサーバー起動 (go run serve相当)
+task update   # ./data にデータ取得 (go run update相当)
+task dev      # 127.0.0.1:8080 でAPIサーバー起動 (go run serve相当。データが無ければ起動時に取得)
+task test     # go test（task test -- -run TestXxx で引数を渡す）
+task lint     # go vet と gofmt の差分確認
 ```
 
 ```bash
@@ -118,55 +129,91 @@ curl http://localhost:8080/v1/banks/0001/branches
 Goツールチェインをホストに入れなくても、[`growstar-jp/docker-compose-collection`](https://github.com/growstar-jp/docker-compose-collection)
 の `tooling/golang-build` コンテナで静的バイナリをビルドできます。既定では
 `$HOME/repos/internal/docker-compose-collection` にそのリポジトリがある前提です
-（`GOLANG_BUILD_DIR` で変更可）。
+（`task build GOLANG_BUILD_DIR=...` で変更可）。
 
 ```bash
-make build
-# => bin/zengin-api （linux/amd64, CGO_ENABLED=0 の静的バイナリ）
+task build
+# => bin/zengin-api （linux/amd64, CGO_ENABLED=0 の静的バイナリ。所有者は実行したユーザー）
 ```
 
-ホストにGoが入っていれば `make build-local` でも同じものがビルドできます。
+ホストにGoが入っていれば `task build:local` でも同じものがビルドできます。
 
 ## 本番デプロイ
 
-コンテナは使わず、`make build` で作った `bin/zengin-api` をそのままホストに配置し、systemdで
+コンテナは使わず、`task build` で作った `bin/zengin-api` をそのままホストに配置し、systemdで
 動かします。Caddyへの接続は他のGrowstarアプリと同じくUNIXドメインソケット経由です。
 
-デプロイ関連ファイルは `deploy/` にまとまっています。ユーザー作成・ディレクトリ準備・env配置・
-バイナリ配置・systemd unit配置と起動まで、`deploy/install.sh` が一括で行います。初回実行と
-再デプロイ（バイナリ更新後の再起動）のどちらにも同じスクリプトを使えます（冪等。既存の
-`/etc/zengin-api/env` は上書きしません）。
+> Makefile時代（2026-09）からの移行は [`docs/upgrade-2026-10-taskfile.md`](docs/upgrade-2026-10-taskfile.md) を参照。
+
+前提（対象ホスト）:
+
+- go-task（`task`）が入っていること
+- [`growstar-jp/docker-compose-collection`](https://github.com/growstar-jp/docker-compose-collection) が
+  `$HOME/repos/internal/docker-compose-collection` にあること（ビルド用の `tooling/golang-build` と、
+  Caddyのサイト定義を配置する `scripts/caddy-site.sh` を使う）
+- Caddyのコンテナに `/srv/sockets/zengin-api:/srv/sockets/zengin-api:ro` がマウントされ、
+  `Caddyfile` が `import apps/*.caddy` していること
 
 ```bash
-# ビルド（開発機やビルドサーバーで実行）
-make build
-
-# 対象ホストにリポジトリ一式（bin/zengin-api含む）を配置した上で実行
-sudo ./deploy/install.sh
+task build           # bin/zengin-api をビルド
+task deploy          # = sudo ./deploy/install.sh（確認プロンプトあり）
+task caddy:install   # infra/caddy/site.caddy を Caddy の apps/zengin-api.caddy に配置して reload（初回とサイト定義の変更時）
 ```
 
-`deploy/install.sh` がやること（`deploy/*.service` `deploy/*.timer` `deploy/*.env.example` を参照）:
+`deploy/install.sh` がやること（`deploy/*.service` `deploy/*.timer` `deploy/*.env.example` を参照）。
+初回と再デプロイのどちらにも同じスクリプトを使えます（冪等。既存の `/etc/zengin-api/env` は上書きしません）:
 
 1. システムユーザー `zengin-api` を作成（未作成の場合のみ）
 2. `/opt/zengin-api/bin` `/var/lib/zengin-api` `/srv/sockets/zengin-api` `/etc/zengin-api` を用意
 3. `/etc/zengin-api/env` が無ければ `deploy/zengin-api.env.example` から作成（既存なら上書きしない）
-4. `bin/zengin-api` を `/opt/zengin-api/bin/zengin-api` に配置
+4. `bin/zengin-api` を `/opt/zengin-api/bin/zengin-api` に、`deploy/zengin-api-cli.sh` を
+   `/usr/local/bin/zengin-api` に配置
 5. `deploy/*.service` `deploy/*.timer` を `/etc/systemd/system/` に配置して `daemon-reload`
 6. `zengin-api.service` を再起動、`zengin-api-update.timer` を有効化
+7. `/healthz` が返るまで待つ（返らなければ直近のログを出して終了コード1。初回はデータ取得のため数十秒かかる）
 
-Caddyfile側では以下のように設定してもらいます。
+### 配置先
 
+| パス | 内容 |
+|---|---|
+| `/opt/zengin-api/bin/zengin-api` | バイナリ（PATHには入れない） |
+| `/usr/local/bin/zengin-api` | 管理コマンドの入口（下記） |
+| `/etc/zengin-api/env` | 環境変数（`EnvironmentFile=`） |
+| `/var/lib/zengin-api/` | データ（`banks.json` `branches/` `updated_at`） |
+| `/srv/sockets/zengin-api/app.sock` | Caddyとの通信用UNIXソケット |
+| `/etc/systemd/system/zengin-api*.{service,timer}` | systemd unit |
+| Caddyの `apps/zengin-api.caddy`（`/srv/containers/docker/caddy/caddy_files/apps/`） | `task caddy:install` が配置するサイト定義。直接編集しない |
+
+### 管理コマンド
+
+`/usr/local/bin/zengin-api` は、サービスと同じ `zengin-api` ユーザー・`/etc/zengin-api/env` の設定で
+バイナリを実行するだけのスクリプトです（`serve` は systemd の管轄なので拒否します）。
+
+```bash
+zengin-api update        # データを今すぐ取得し直す（serveはRELOAD_INTERVAL以内に取り込む）
+zengin-api healthcheck   # ソケット越しに /healthz を確認する
 ```
-example.com {
-    reverse_proxy unix//srv/sockets/zengin-api/app.sock
-}
+
+### Caddyのサイト定義
+
+正本は `infra/caddy/site.caddy` で、ドメインの既定値は `zengin.growstar-jp.com`（`import internal_only`
+で接続元を制限）。別のドメインで動かすときだけ、リポジトリ直下の `.env` に `CADDY_DOMAIN=...` を書きます。
+配置内容の確認は `task caddy:show`。
+
+### 削除
+
+```bash
+task uninstall         # Caddyのサイト定義・unit・バイナリ・/etc/zengin-api を削除（データとユーザーは残す）
+task uninstall:purge   # 上記に加えてデータ /var/lib/zengin-api とユーザーも削除
 ```
 
 ## ログ
 
 `log/slog` でJSONをstdoutに出力するだけで、ファイル出力やアプリ側でのログローテーションは
-行わない。systemd管理下ではstdoutは自動でjournalに入るため、`journalctl -u zengin-api.service`
-で確認できる。journalの保持・ローテーションはホスト共通のjournald設定に従う（このリポジトリでは
+行わない。systemd管理下ではstdoutは自動でjournalに入るため、`task logs`
+（= `journalctl -u zengin-api.service -u zengin-api-update.service -f`）で確認できる。`task logs` は
+`sudo` を付けないので、実行するユーザーを `systemd-journal` グループに入れておく
+（`sudo usermod -aG systemd-journal <ユーザー>` して再ログイン）。journalの保持・ローテーションはホスト共通のjournald設定に従う（このリポジトリでは
 何も設定しない）。
 
 > **TODO**: 2026-09時点でホストのログ収集基盤(`docker-compose-collection/stacks/observability`)は

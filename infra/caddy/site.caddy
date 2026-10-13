@@ -1,0 +1,6 @@
+${CADDY_DOMAIN:-zengin.growstar-jp.com} {
+	import access_log
+	import internal_only
+	# アプリはUNIXソケットで待ち受ける。Caddyのコンテナに /srv/sockets/zengin-api を読み取り専用でマウントしておく。
+	reverse_proxy unix//srv/sockets/zengin-api/app.sock
+}
